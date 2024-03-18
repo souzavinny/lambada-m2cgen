@@ -4,27 +4,54 @@ import requests
 import model
 import json
 import traceback
+import ipfshttpclient
+import asyncio
 
 logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
 
 rollup_server = environ["ROLLUP_HTTP_SERVER_URL"]
+
 logger.info(f"HTTP rollup_server url is {rollup_server}")
 
+client = ipfshttpclient.connect('http://127.0.0.1:5001')
+
+state_path = "/state"
+
+#ipfs aux functions
+
+# async def finish_tx(rollup_server_url):
+#     try:
+#         response = requests.post(f"{rollup_server_url}/finish", json={})
+#         response.raise_for_status()
+#         print("Finish tx request sent.")
+#     except requests.RequestException as e:
+#         print(f"Error finishing tx: {e}")
+
+async def exist_file_ipfs(path):
+    try:
+        client.files.stat(path)
+        return True
+    except Exception as e:
+        if "file does not exist" in str(e):
+            return False
+        raise
+
+async def read_file_ipfs(path):
+    try:
+        return client.cat(path).decode('utf-8')
+    except Exception as e:
+        if "file does not exist" in str(e):
+            return ""
+        raise
+
+async def write_file_ipfs(path, data):
+    exist = await exist_file_ipfs(path)
+    if exist:
+        client.files.rm(path)  # Remove file if exists
+    client.files.write(path, data.encode(), create=True)
+
 #aux m2cgen functions
-
-# def hex2str(hex):
-#     """
-#     Decodes a hex string into a regular string
-#     """
-#     return bytes.fromhex(hex[2:]).decode("utf-8")
-
-
-# def str2hex(str):
-#     """
-#     Encodes a string as a hex string
-#     """
-#     return "0x" + str.encode("utf-8").hex()
 
 
 def classify(input):
@@ -101,10 +128,27 @@ def m2cgen(input):
         logger.error(msg)
         
 
-data = requests.get(rollup_server + "/get_tx")
-logger.info(f"Got tx {data.content}")
+# data = requests.get(rollup_server + "/get_tx")
+# logger.info(f"Got tx {data.content}")
 
-predicted = m2cgen(data.content)
-logger.info(f"Result of the prediction : {predicted}")
+# predicted = m2cgen(data.content)
+# logger.info(f"Result of the prediction : {predicted}")
 
-requests.post(rollup_server + "/finish", json={})
+# requests.post(rollup_server + "/finish", json={})
+
+async def main():
+    if not await exist_file_ipfs(state_path):
+        client.files.mkdir(state_path)
+
+    try:
+        data = requests.get(rollup_server + "/get_tx")
+        logger.info(f"Got tx {data.content}")
+        predictions = m2cgen(data.content)
+        logger.info(f"Result of the prediction : {predictions}")
+        await write_file_ipfs(f"{state_path}/predictions.json", json.dumps({"predictions": predictions}))
+        requests.post(rollup_server + "/finish", json={})
+    else:
+        print("Invalid input or response format.")
+
+if __name__ == "__main__":
+    asyncio.run(main())
