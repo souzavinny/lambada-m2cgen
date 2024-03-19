@@ -1,2 +1,2 @@
 requests == 2.31.0
-ipfshttpclient == 0.7.0
+IPFS-Toolkit == 0.5.20
