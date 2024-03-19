@@ -1,11 +1,9 @@
 from os import environ
 import logging
 import requests
-import model
 import json
 import traceback
-import ipfshttpclient
-import asyncio
+import ipfshttpclient2
 
 logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
@@ -14,21 +12,15 @@ rollup_server = environ["ROLLUP_HTTP_SERVER_URL"]
 
 logger.info(f"HTTP rollup_server url is {rollup_server}")
 
-client = ipfshttpclient.connect('http://127.0.0.1:5001')
+try:
+    client = ipfshttpclient2.connect('/dns/localhost/tcp/5001/http')
+except Exception as e:
+    logger.error(f"Failed to connect to IPFS client: {e}")
+    raise SystemExit(e)
 
 state_path = "/state"
 
-#ipfs aux functions
-
-# async def finish_tx(rollup_server_url):
-#     try:
-#         response = requests.post(f"{rollup_server_url}/finish", json={})
-#         response.raise_for_status()
-#         print("Finish tx request sent.")
-#     except requests.RequestException as e:
-#         print(f"Error finishing tx: {e}")
-
-async def exist_file_ipfs(path):
+def exist_file_ipfs(path):
     try:
         client.files.stat(path)
         return True
@@ -37,22 +29,11 @@ async def exist_file_ipfs(path):
             return False
         raise
 
-async def read_file_ipfs(path):
-    try:
-        return client.cat(path).decode('utf-8')
-    except Exception as e:
-        if "file does not exist" in str(e):
-            return ""
-        raise
-
-async def write_file_ipfs(path, data):
-    exist = await exist_file_ipfs(path)
+def write_file_ipfs(path, data):
+    exist = exist_file_ipfs(path)
     if exist:
         client.files.rm(path)  # Remove file if exists
     client.files.write(path, data.encode(), create=True)
-
-#aux m2cgen functions
-
 
 def classify(input):
     """
@@ -108,7 +89,7 @@ def format(input):
     return output
 
 def m2cgen(input):
-    logger.info(f"Received data {data}")
+    logger.info(f"Received data {input}")
 
     try:
         # retrieves input as string
@@ -125,30 +106,24 @@ def m2cgen(input):
 
     except Exception as e:
         msg = f"Error processing data {data}\n{traceback.format_exc()}"
-        logger.error(msg)
-        
+        logger.error(msg) 
 
-# data = requests.get(rollup_server + "/get_tx")
-# logger.info(f"Got tx {data.content}")
 
-# predicted = m2cgen(data.content)
-# logger.info(f"Result of the prediction : {predicted}")
-
-# requests.post(rollup_server + "/finish", json={})
-
-async def main():
-    if not await exist_file_ipfs(state_path):
+if not exist_file_ipfs(state_path):
         client.files.mkdir(state_path)
 
-    try:
-        data = requests.get(rollup_server + "/get_tx")
-        logger.info(f"Got tx {data.content}")
-        predictions = m2cgen(data.content)
-        logger.info(f"Result of the prediction : {predictions}")
-        await write_file_ipfs(f"{state_path}/predictions.json", json.dumps({"predictions": predictions}))
-        requests.post(rollup_server + "/finish", json={})
-    else:
-        print("Invalid input or response format.")
+data = requests.get(rollup_server + "/get_tx")
+logger.info(f"Got tx {data.content}")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+predictions = m2cgen(data.content)
+logger.info(f"Got predictions: {predictions}")
+
+if predictions is not None:
+    logger.info(f"Result of the prediction : {predictions}")
+    client.files.write(state_path+"/predictions.json", data.encode(), create=True)
+    #write_file_ipfs(f"{state_path}/predictions.json", json.dumps({"predictions": predictions}))
+    finish_response = requests.post(rollup_server + "/finish", json={})
+else:
+    logger.error("Failed to get transaction data")
+
+
