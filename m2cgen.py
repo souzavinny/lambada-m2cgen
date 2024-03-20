@@ -4,6 +4,7 @@ import requests
 import json
 import traceback
 import ipfshttpclient2
+import model
 from io import BytesIO
 
 logging.basicConfig(level="INFO")
