@@ -105,9 +105,9 @@ logger.info(f"Got predictions: {predictions}")
 
 if predictions is not None:
     logger.info(f"Result of the prediction : {predictions}")
-    ipfs_instance.files.mkdir(state_path, parents=True)
+    client.files.mkdir(state_path, parents=True)
     output_path = f"{directory_path}/output.file"
-    ipfs_instance.files.write(output_path, BytesIO(predictions.encode('utf-8')), create=True, truncate=True)
+    client.files.write(output_path, BytesIO(predictions.encode('utf-8')), create=True, truncate=True)
     finish_response = requests.post(rollup_server + "/finish", json={})
 else:
     logger.error("Failed to get transaction data")
