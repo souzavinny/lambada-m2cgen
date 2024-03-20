@@ -107,7 +107,7 @@ if predictions is not None:
     logger.info(f"Result of the prediction : {predictions}")
     client.files.mkdir(state_path, parents=True)
     output_path = f"{state_path}/output.file"
-    client.files.write(output_path, BytesIO(predictions.encode('utf-8')), create=True, truncate=True)
+    client.files.write(output_path, BytesIO(str(predictions).encode('utf-8')), create=True, truncate=True)
     finish_response = requests.post(rollup_server + "/finish", json={})
 else:
     logger.error("Failed to get transaction data")
