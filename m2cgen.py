@@ -14,8 +14,10 @@ rollup_server = environ["ROLLUP_HTTP_SERVER_URL"]
 
 logger.info(f"HTTP rollup_server url is {rollup_server}")
 
+ipfs_api = os.getenv('IPFS_API', '/ip4/127.0.0.1/tcp/5001')
+
 try:
-    client = ipfshttpclient2.connect('/dns/localhost/tcp/5001/http')
+    client = ipfshttpclient2.connect(ipfs_api)
 except Exception as e:
     logger.error(f"Failed to connect to IPFS client: {e}")
     raise SystemExit(e)
