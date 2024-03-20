@@ -4,6 +4,7 @@ import requests
 import json
 import traceback
 import ipfshttpclient2
+from io import BytesIO
 
 logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
@@ -18,22 +19,7 @@ except Exception as e:
     logger.error(f"Failed to connect to IPFS client: {e}")
     raise SystemExit(e)
 
-state_path = "/state"
-
-def exist_file_ipfs(path):
-    try:
-        client.files.stat(path)
-        return True
-    except Exception as e:
-        if "file does not exist" in str(e):
-            return False
-        raise
-
-def write_file_ipfs(path, data):
-    exist = exist_file_ipfs(path)
-    if exist:
-        client.files.rm(path)  # Remove file if exists
-    client.files.write(path, data.encode(), create=True)
+state_path = '/state'
 
 def classify(input):
     """
@@ -93,10 +79,11 @@ def m2cgen(input):
 
     try:
         # retrieves input as string
-        logger.info(f"Received input: '{input}'")
+        input_str = input.decode('utf-8')
+        logger.info(f"Received input: '{input_str}'")
 
         # converts input to the format expected by the m2cgen model
-        input_json = json.loads(input)
+        input_json = json.loads(input_str)
         input_formatted = format(input_json)
 
         # computes predicted classification for input and returns the predicted classification
@@ -109,9 +96,6 @@ def m2cgen(input):
         logger.error(msg) 
 
 
-if not exist_file_ipfs(state_path):
-        client.files.mkdir(state_path)
-
 data = requests.get(rollup_server + "/get_tx")
 logger.info(f"Got tx {data.content}")
 
@@ -120,10 +104,9 @@ logger.info(f"Got predictions: {predictions}")
 
 if predictions is not None:
     logger.info(f"Result of the prediction : {predictions}")
-    client.files.write(state_path+"/predictions.json", data.encode(), create=True)
-    #write_file_ipfs(f"{state_path}/predictions.json", json.dumps({"predictions": predictions}))
+    ipfs_instance.files.mkdir(state_path, parents=True)
+    output_path = f"{directory_path}/output.file"
+    ipfs_instance.files.write(output_path, BytesIO(predictions.encode('utf-8')), create=True, truncate=True)
     finish_response = requests.post(rollup_server + "/finish", json={})
 else:
     logger.error("Failed to get transaction data")
-
-
